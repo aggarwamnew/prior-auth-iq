@@ -7,7 +7,6 @@ import com.priorauthiq.model.Decision;
 import com.priorauthiq.model.Determination;
 import com.priorauthiq.model.PolicyCriterion;
 import com.priorauthiq.model.PriorAuthRequest;
-import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -26,7 +25,6 @@ import java.util.UUID;
  * (partial therapy durations, implicit criteria, contradictory notes) is what
  * the Slice-2 reasoning matcher is for.
  */
-@Component
 public class DeterministicPolicyMatcher implements PolicyMatcher {
 
     private static final List<String> NEGATIONS =

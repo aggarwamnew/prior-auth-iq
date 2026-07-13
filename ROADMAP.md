@@ -10,12 +10,13 @@ Each slice is a self-contained, tested increment that adds one Spring AI enterpr
 - 9 tests (matcher unit + full-stack MockMvc).
 - **Point:** prove the architecture and the determination contract before any model is involved, and give the LLM matcher a deterministic control to be evaluated against.
 
-## Slice 2 — Spring AI matcher (LLM + structured output)
+## Slice 2 — Spring AI matcher (LLM + structured output) ✅
 
 - `SpringAiPolicyMatcher implements PolicyMatcher`, backed by a Spring AI `ChatClient`.
-- **Structured output:** the model returns a `Determination` via Spring AI's output converter — typed and validated, never free text.
-- Provider-portable (`spring.ai.*`), selected by `priorauthiq.matcher: llm`. Tests use a mock `ChatModel` so CI stays green with no keys.
-- **Capabilities shown:** ChatClient, prompt templating, structured output, provider portability.
+- **Structured output:** the model returns a typed `LlmAssessment` via `.entity()` (schema-validated, never free text), wrapped into the same `Determination` the deterministic matcher produces.
+- Provider-portable, selected by `priorauthiq.matcher: llm` via `MatcherConfig` (`@ConditionalOnProperty`). The LLM path is tested end-to-end over a **mocked `ChatModel`**, so CI stays green with no keys.
+- 12 tests. Model supplies judgment only; server metadata + human-in-the-loop added in code.
+- **Capabilities shown:** ChatClient, system+user prompt, structured output, provider portability, config-selected beans.
 
 ## Slice 3 — RAG over a policy corpus
 

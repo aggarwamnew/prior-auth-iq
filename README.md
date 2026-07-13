@@ -4,7 +4,7 @@ A **Spring AI** reference architecture for **prior-authorization triage**: an as
 
 **Decision support, not medical judgment.** The assistant never decides treatment — it checks whether a request *matches documented coverage criteria*, exactly as a human reviewer does today, and always defers the final call to a person. All data in this repo is synthetic.
 
-**9 tests** | **Spring Boot 3** | **pluggable matcher (deterministic → LLM)** | **structured, auditable determinations**
+**12 tests** | **Spring Boot 3 + Spring AI** | **pluggable matcher (deterministic + LLM)** | **structured, auditable determinations**
 
 ## Why this exists
 
@@ -21,15 +21,19 @@ POST /api/prior-auth
  PriorAuthService ── resolves ──▶ PolicyStore  (coverage policy for the service code)
       │
       ▼
- PolicyMatcher (interface)
-      ├─ DeterministicPolicyMatcher   ← Slice 1 (this commit): keyword + negation, no model
-      └─ SpringAiPolicyMatcher        ← Slice 2: ChatClient + structured output
+ PolicyMatcher (interface)          ← selected by `priorauthiq.matcher`
+      ├─ DeterministicPolicyMatcher   ← keyword + negation, no model (default)
+      └─ SpringAiPolicyMatcher        ← Spring AI ChatClient + structured output
       │
       ▼
  Determination ── stored ──▶ DeterminationStore   (audit trail, awaits reviewer sign-off)
 ```
 
-The whole system is built around one seam — the `PolicyMatcher` interface. Everything upstream and downstream (the REST API, the service, the stores, the `Determination` contract) is model-agnostic, so introducing Spring AI in Slice 2 changes exactly one component.
+The whole system is built around one seam — the `PolicyMatcher` interface. Everything upstream and downstream (the REST API, the service, the stores, the `Determination` contract) is model-agnostic, so switching from the deterministic baseline to the LLM matcher is a **one-line config change** (`priorauthiq.matcher: llm`) that touches no other component.
+
+### The Spring AI matcher (Slice 2)
+
+`SpringAiPolicyMatcher` sends the coverage criteria and the request to a Spring AI `ChatClient` and gets back a **structured** `LlmAssessment` (typed and schema-validated via `.entity()`, never free text). The model supplies only the *judgment* — decision, per-criterion MET/NOT_MET/UNCLEAR, rationale; server metadata (id, timestamp, `reviewed=false`) and the criterion descriptions are added by the code, and the human-in-the-loop guarantee is structural. It is **provider-portable**: the injected `ChatClient` is backed by whichever model provider is on the classpath (OpenAI, Anthropic, Ollama, Azure…) — the matcher neither knows nor cares which.
 
 ### The determination contract
 
@@ -73,20 +77,19 @@ Returns an `APPROVE` determination with all three adalimumab (J0135) criteria ma
 
 ## Tech stack
 
-- Java 17 · Spring Boot 3.4
+- Java 17 · Spring Boot 3.4 · Spring AI 1.0 (`spring-ai-client-chat`)
 - Spring Web + Bean Validation
 - In-memory stores (`ConcurrentHashMap`) — a vector-store-backed policy corpus arrives in Slice 3
-- JUnit 5 + MockMvc (9 tests)
-- Spring AI 1.0 (introduced in Slice 2; BOM staged in `pom.xml`)
+- JUnit 5 + MockMvc + Mockito (12 tests; the LLM matcher is tested end-to-end over a mocked `ChatModel`, so CI needs no API key)
 
 ## Running
 
 ```bash
-mvn test          # 9 tests
-mvn spring-boot:run   # http://localhost:8081
+mvn test          # 12 tests
+mvn spring-boot:run   # http://localhost:8081 (deterministic matcher, no keys)
 ```
 
-Slice 1 runs with **no model and no API keys** — the deterministic matcher is fully self-contained. The active matcher is chosen in `application.yaml` (`priorauthiq.matcher: deterministic`); Slice 2 adds `llm`, backed by a configurable Spring AI provider.
+The default deterministic matcher runs with **no model and no API keys**. To run the LLM matcher, add a Spring AI model-provider starter (e.g. `spring-ai-starter-model-openai`) plus its config under `spring.ai.*`, then set `priorauthiq.matcher: llm`. The rest of the application is unchanged — that is the point of the interface seam.
 
 ## Roadmap
 

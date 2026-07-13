@@ -47,6 +47,15 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
+        <!-- Spring AI: ChatClient + structured output (Slice 2).
+             Provider-agnostic core — add a model starter (e.g.
+             spring-ai-starter-model-openai/anthropic/ollama) + config to run
+             the `llm` matcher for real. Tests mock the ChatModel, so no key. -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-client-chat</artifactId>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
