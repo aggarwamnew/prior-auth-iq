@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: prior-auth-iq
+
+# The active PolicyMatcher is selected here. Slice 1 ships the deterministic
+# matcher (no model, no keys). Slice 2 adds `llm`, backed by a Spring AI
+# ChatClient with a provider configured under `spring.ai.*`.
+priorauthiq:
+  matcher: deterministic   # deterministic | llm (llm arrives in Slice 2)
+
+server:
+  port: 8081
