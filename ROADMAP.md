@@ -22,7 +22,7 @@ Each slice is a self-contained, tested increment that adds one Spring AI enterpr
 
 Split into two shippable increments; the vector-store interface stays identical across both, so 3b is a storage swap, not a redesign.
 
-### Slice 3a — RAG on `SimpleVectorStore`
+### Slice 3a — RAG on `SimpleVectorStore` ✅
 
 - Move coverage policies out of the in-memory map into Spring AI's `SimpleVectorStore`; retrieval feeds the matcher the applicable criteria for the requested service.
 - ETL: seeded policy documents → reader → splitter → embeddings.

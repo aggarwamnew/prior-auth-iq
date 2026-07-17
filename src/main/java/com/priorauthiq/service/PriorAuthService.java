@@ -5,8 +5,8 @@ import com.priorauthiq.model.CoveragePolicy;
 import com.priorauthiq.model.Determination;
 import com.priorauthiq.model.PriorAuthRequest;
 import com.priorauthiq.model.Decision;
+import com.priorauthiq.retriever.PolicyRetriever;
 import com.priorauthiq.store.DeterminationStore;
-import com.priorauthiq.store.PolicyStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -17,26 +17,27 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Orchestrates prior-authorization triage: resolve the governing policy, run
- * the configured {@link PolicyMatcher}, persist and return the determination.
+ * Orchestrates prior-authorization triage: resolve the governing policy via
+ * the configured {@link PolicyRetriever}, run the configured {@link
+ * PolicyMatcher}, persist and return the determination.
  *
- * <p>The matcher is injected by interface — the deterministic (Slice 1) or the
- * Spring AI (Slice 2) implementation is selected by configuration, and this
- * service does not change.
+ * <p>Both collaborators are injected by interface and selected by
+ * configuration — direct lookup or vector retrieval (Slice 3a), deterministic
+ * or Spring AI matching (Slice 2) — and this service does not change.
  */
 @Service
 public class PriorAuthService {
 
     private static final Logger log = LoggerFactory.getLogger(PriorAuthService.class);
 
-    private final PolicyStore policyStore;
+    private final PolicyRetriever policyRetriever;
     private final DeterminationStore determinationStore;
     private final PolicyMatcher policyMatcher;
 
-    public PriorAuthService(PolicyStore policyStore,
+    public PriorAuthService(PolicyRetriever policyRetriever,
                             DeterminationStore determinationStore,
                             PolicyMatcher policyMatcher) {
-        this.policyStore = policyStore;
+        this.policyRetriever = policyRetriever;
         this.determinationStore = determinationStore;
         this.policyMatcher = policyMatcher;
     }
@@ -47,15 +48,15 @@ public class PriorAuthService {
      * @throws PolicyNotFoundException if no policy governs the requested service
      */
     public Determination triage(PriorAuthRequest submitted) {
-        CoveragePolicy policy = policyStore.findByServiceCode(submitted.serviceCode())
+        CoveragePolicy policy = policyRetriever.retrieve(submitted)
                 .orElseThrow(() -> new PolicyNotFoundException(submitted.serviceCode()));
 
         PriorAuthRequest request = withServerFields(submitted);
         Determination determination = policyMatcher.evaluate(request, policy);
 
-        log.info("Triaged request {} for {} -> {} [{}]",
+        log.info("Triaged request {} for {} -> {} [retriever={}, matcher={}]",
                 request.requestId(), request.serviceCode(),
-                determination.decision(), policyMatcher.strategy());
+                determination.decision(), policyRetriever.strategy(), policyMatcher.strategy());
 
         return determinationStore.save(determination);
     }

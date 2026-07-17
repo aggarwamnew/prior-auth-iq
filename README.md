@@ -4,7 +4,7 @@ A **Spring AI** reference architecture for **prior-authorization triage**: an as
 
 **Decision support, not medical judgment.** The assistant never decides treatment — it checks whether a request *matches documented coverage criteria*, exactly as a human reviewer does today, and always defers the final call to a person. All data in this repo is synthetic.
 
-**12 tests** | **Spring Boot 3 + Spring AI** | **pluggable matcher (deterministic + LLM)** | **structured, auditable determinations**
+**16 tests** | **Spring Boot 3 + Spring AI** | **pluggable matcher (deterministic + LLM)** | **RAG policy retrieval (Slice 3a)** | **structured, auditable determinations**
 
 ## Why this exists
 
@@ -18,7 +18,9 @@ This project is that deployment, built properly: an interface-first design where
 POST /api/prior-auth
       │
       ▼
- PriorAuthService ── resolves ──▶ PolicyStore  (coverage policy for the service code)
+ PolicyRetriever (interface)        ← selected by `priorauthiq.retriever`
+      ├─ DirectPolicyRetriever        ← exact service-code lookup (default)
+      └─ VectorStorePolicyRetriever   ← RAG over the embedded policy corpus
       │
       ▼
  PolicyMatcher (interface)          ← selected by `priorauthiq.matcher`
@@ -29,11 +31,15 @@ POST /api/prior-auth
  Determination ── stored ──▶ DeterminationStore   (audit trail, awaits reviewer sign-off)
 ```
 
-The whole system is built around one seam — the `PolicyMatcher` interface. Everything upstream and downstream (the REST API, the service, the stores, the `Determination` contract) is model-agnostic, so switching from the deterministic baseline to the LLM matcher is a **one-line config change** (`priorauthiq.matcher: llm`) that touches no other component.
+The whole system is built around two seams — `PolicyRetriever` (how the governing policy is found) and `PolicyMatcher` (how the request is evaluated against it). Everything upstream and downstream (the REST API, the service, the stores, the `Determination` contract) is model-agnostic, so switching either strategy is a **one-line config change** (`priorauthiq.retriever: vector`, `priorauthiq.matcher: llm`) that touches no other component. In both seams the deterministic implementation stays in the repo permanently as the control the model-backed one is measured against.
 
 ### The Spring AI matcher (Slice 2)
 
 `SpringAiPolicyMatcher` sends the coverage criteria and the request to a Spring AI `ChatClient` and gets back a **structured** `LlmAssessment` (typed and schema-validated via `.entity()`, never free text). The model supplies only the *judgment* — decision, per-criterion MET/NOT_MET/UNCLEAR, rationale; server metadata (id, timestamp, `reviewed=false`) and the criterion descriptions are added by the code, and the human-in-the-loop guarantee is structural. It is **provider-portable**: the injected `ChatClient` is backed by whichever model provider is on the classpath (OpenAI, Anthropic, Ollama, Azure…) — the matcher neither knows nor cares which.
+
+### RAG policy retrieval (Slice 3a)
+
+With `priorauthiq.retriever: vector`, coverage policies are rendered as documents, split (`TokenTextSplitter`), embedded, and loaded into a Spring AI `VectorStore` at startup. A request is then resolved by **clinical similarity** — its service code, diagnosis, notes, and history are searched against the corpus, and the best chunk above the similarity threshold identifies the governing policy via metadata. The typed policy is rehydrated from the system of record, never parsed out of chunk text. Slice 3a runs on `SimpleVectorStore` so CI stays keyless (tests supply a deterministic embedding model); Slice 3b swaps in pgvector behind the same `VectorStore` interface.
 
 ### The determination contract
 
@@ -77,15 +83,15 @@ Returns an `APPROVE` determination with all three adalimumab (J0135) criteria ma
 
 ## Tech stack
 
-- Java 17 · Spring Boot 3.4 · Spring AI 1.0 (`spring-ai-client-chat`)
+- Java 17 · Spring Boot 3.4 · Spring AI 1.0 (`spring-ai-client-chat`, `spring-ai-vector-store`)
 - Spring Web + Bean Validation
-- In-memory stores (`ConcurrentHashMap`) — a vector-store-backed policy corpus arrives in Slice 3
-- JUnit 5 + MockMvc + Mockito (12 tests; the LLM matcher is tested end-to-end over a mocked `ChatModel`, so CI needs no API key)
+- In-memory stores (`ConcurrentHashMap`) + Spring AI `SimpleVectorStore` for the embedded policy corpus (pgvector arrives in Slice 3b)
+- JUnit 5 + MockMvc + Mockito (16 tests; the LLM matcher is tested end-to-end over a mocked `ChatModel`, so CI needs no API key)
 
 ## Running
 
 ```bash
-mvn test          # 12 tests
+mvn test          # 16 tests
 mvn spring-boot:run   # http://localhost:8081 (deterministic matcher, no keys)
 ```
 

@@ -9,6 +9,14 @@ spring:
 #                    and its config under `spring.ai.*` to supply ChatClient.Builder.
 priorauthiq:
   matcher: deterministic   # deterministic | llm
+  # Policy resolution strategy (Slice 3a).
+  #   direct (default) — exact service-code lookup, no model, no keys.
+  #   vector           — RAG over the embedded policy corpus. Requires an
+  #                      EmbeddingModel bean (add a model-provider starter);
+  #                      the corpus is ingested at startup.
+  retriever: direct        # direct | vector
+  retrieval:
+    similarity-threshold: 0.25
 
 server:
   port: 8081

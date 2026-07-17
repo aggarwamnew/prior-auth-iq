@@ -56,6 +56,16 @@
             <artifactId>spring-ai-client-chat</artifactId>
         </dependency>
 
+        <!-- Spring AI: VectorStore API + SimpleVectorStore (Slice 3a).
+             The policy corpus is embedded and retrieved instead of looked up
+             by key. SimpleVectorStore keeps CI keyless (tests supply a
+             deterministic EmbeddingModel); Slice 3b swaps in pgvector behind
+             the same interface. -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-vector-store</artifactId>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
