@@ -20,9 +20,20 @@ Each slice is a self-contained, tested increment that adds one Spring AI enterpr
 
 ## Slice 3 — RAG over a policy corpus
 
-- Move coverage policies into a vector store (pgvector); retrieve the applicable criteria for a requested service instead of an in-memory lookup.
-- ETL: policy documents → reader → splitter → embeddings.
-- **Capabilities shown:** `VectorStore`, document ETL, retrieval-augmented matching, advisors.
+Split into two shippable increments; the vector-store interface stays identical across both, so 3b is a storage swap, not a redesign.
+
+### Slice 3a — RAG on `SimpleVectorStore`
+
+- Move coverage policies out of the in-memory map into Spring AI's `SimpleVectorStore`; retrieval feeds the matcher the applicable criteria for the requested service.
+- ETL: seeded policy documents → reader → splitter → embeddings.
+- Tests run over a mocked embedding model — CI stays keyless and green.
+- **Capabilities shown:** `VectorStore`, document ETL, retrieval-augmented matching.
+
+### Slice 3b — pgvector behind a config switch
+
+- Replace `SimpleVectorStore` with pgvector (Docker Compose for Postgres), selected by configuration; same interface, one bean swap.
+- Retrieval advisors introduced here once the store is production-shaped.
+- **Capabilities shown:** pgvector, config-selected storage backends, advisors.
 
 ## Slice 4 — Tool calling
 
